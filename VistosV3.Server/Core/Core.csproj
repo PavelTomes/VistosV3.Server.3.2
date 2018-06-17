@@ -15,6 +15,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\NetStdTools\NetStdTools.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="QueryBuilder\Templates\CreateFrom.tt">
       <Generator>TextTemplatingFilePreprocessor</Generator>
       <LastGenOutput>CreateFrom.cs</LastGenOutput>

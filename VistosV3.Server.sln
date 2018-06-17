@@ -11,6 +11,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WebApplication1", "VistosV3
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestApp", "VistosV3.Server\TestApp\TestApp.csproj", "{938363AD-AF08-49BE-81B4-1224C6669D5A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetStdTools", "VistosV3.Server\NetStdTools\NetStdTools.csproj", "{3A9A4B2A-9CFF-483D-A716-95E7A8E6171A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -33,6 +35,10 @@ Global
 		{938363AD-AF08-49BE-81B4-1224C6669D5A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{938363AD-AF08-49BE-81B4-1224C6669D5A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{938363AD-AF08-49BE-81B4-1224C6669D5A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3A9A4B2A-9CFF-483D-A716-95E7A8E6171A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3A9A4B2A-9CFF-483D-A716-95E7A8E6171A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3A9A4B2A-9CFF-483D-A716-95E7A8E6171A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3A9A4B2A-9CFF-483D-A716-95E7A8E6171A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

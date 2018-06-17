@@ -149,6 +149,8 @@ namespace Core.VistosDb
             modelBuilder.Entity<Log>().Property(b => b.CaptionDisplay).ValueGeneratedOnAddOrUpdate();
             modelBuilder.Entity<Log>().Property(b => b.CaptionSort).ValueGeneratedOnAddOrUpdate();
 
+            modelBuilder.Entity<EmailAttachment>().Property(b => b.CaptionDisplay).ValueGeneratedOnAddOrUpdate();
+            modelBuilder.Entity<EmailAttachment>().Property(b => b.CaptionSort).ValueGeneratedOnAddOrUpdate();
 
             //Audit
             //BusinessUnit

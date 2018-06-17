@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Threading.Tasks;
+using System.Web;
 using Core.Models;
 using Core.Models.ApiRequest;
 using Core.Repository;
@@ -13,6 +15,8 @@ using Core.VistosDb.Objects;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Internal;
 using Microsoft.AspNetCore.Mvc;
+using NetStdTools;
+using NetStdTools.ReportExecution;
 using Newtonsoft.Json;
 using VistosV3.Server.Code;
 
@@ -24,6 +28,7 @@ namespace VistosV3.Server.Controllers
         {
         }
 
+        #region Execute
         [HttpPost]
         public object Execute(string id)
         {
@@ -107,6 +112,154 @@ namespace VistosV3.Server.Controllers
                 return $"{{ \"error\": \"{ex.Message}\"}}";
             }
         }
+        #endregion
+
+        #region Report
+        [HttpGet]
+        public async Task<IActionResult> GetReport(
+                    int id,
+                    ReportMode reportMode,
+                    ExportType exportType,
+                    string rdlReportName,
+                    string entityName,
+                    string ids,
+                    string reportJsonData,
+                    string userToken)
+        {
+            if (string.IsNullOrEmpty(userToken))
+            {
+                return null;
+            }
+            UserInfo userInfo = GetUserInfoFromUserToken(userToken);
+            string reportJsonData1 = string.Empty;
+            if (!string.IsNullOrEmpty(reportJsonData))
+            {
+                byte[] encodedDataAsBytes = System.Convert.FromBase64String(reportJsonData);
+                string dataEncoded = System.Text.ASCIIEncoding.ASCII.GetString(encodedDataAsBytes);
+                reportJsonData1 = HttpUtility.UrlDecode(dataEncoded);
+            }
+
+            try
+            {
+                if (userInfo != null)
+                {
+                    ReportGenerator gen = new ReportGenerator(
+                    Settings.GetInstance.SystemSettings.ReportServerUrl + "/ReportExecution2005.asmx",
+                    Settings.GetInstance.SystemSettings.ReportServerUserName,
+                    Settings.GetInstance.SystemSettings.ReportServerPassword
+                    );
+                    string reportPath = Settings.GetInstance.SystemSettings.ReportServerFormsPath;
+                    if (!reportPath.EndsWith("/")) reportPath += "/";
+
+                    if (reportMode == ReportMode.MultipleByMultipleIds)
+                    {
+                        byte[] encodedDataAsBytes = System.Convert.FromBase64String(ids);
+                        string idsEncoded = System.Text.ASCIIEncoding.ASCII.GetString(encodedDataAsBytes);
+                        string idsUrlEncoded = HttpUtility.UrlDecode(idsEncoded).Replace("[", "").Replace("]", "");
+                        string[] idsUrlEncodedSplited = idsUrlEncoded.Split(",".ToCharArray(), StringSplitOptions.RemoveEmptyEntries);
+                        if (idsUrlEncodedSplited != null && idsUrlEncodedSplited.Length == 1)
+                        {
+                            int recordId = int.Parse(idsUrlEncodedSplited[0]);
+                            return await this.RenderReport(userInfo, entityName, recordId, reportPath + rdlReportName, exportType, gen); ;
+                        }
+                        else
+                        {
+                            using (MemoryStream compressedFileStream = new MemoryStream())
+                            {
+                                using (ZipArchive zipArchive = new ZipArchive(compressedFileStream, ZipArchiveMode.Update, false))
+                                {
+                                    foreach (string recordIdStr in idsUrlEncodedSplited)
+                                    {
+                                        int recordId = int.Parse(recordIdStr);
+                                        byte[] repData = await this.RenderReportData(userInfo, entityName, recordId, reportPath + rdlReportName, exportType, gen);
+                                        SqlReport sqlReport = new SqlReport(userInfo, this.auditService);
+                                        string reportNameReal = sqlReport.GetReportName(entityName, id);
+
+                                        ZipArchiveEntry zipEntry = zipArchive.CreateEntry(reportNameReal);
+                                        using (MemoryStream originalFileStream = new MemoryStream(repData))
+                                        {
+                                            using (Stream zipEntryStream = zipEntry.Open())
+                                            {
+                                                originalFileStream.CopyTo(zipEntryStream);
+                                            }
+                                        }
+                                    }
+                                }
+                                return new FileContentResult(compressedFileStream.ToArray(), "application/zip") { FileDownloadName = "Reports.zip" };
+                            }
+                        }
+                    }
+                    //**else if (reportMode == ReportMode.OneByMultipleIds)
+                    //**{
+                    //**    byte[] encodedDataAsBytes = System.Convert.FromBase64String(ids);
+                    //**    string idsEncoded = System.Text.ASCIIEncoding.ASCII.GetString(encodedDataAsBytes);
+                    //**    string idsUrlEncoded = HttpUtility.UrlDecode(idsEncoded);
+                    //**
+                    //**    Vistos3Api.Code.Reports.ReportSettings reportSettings = new Vistos3Api.Code.Reports.ReportSettings();
+                    //**    reportSettings.ReportPath = Settings.GetInstance.SystemSettings.ReportServerFormsPath;
+                    //**    reportSettings.ReportServerUserName = Settings.GetInstance.SystemSettings.ReportServerUserName;
+                    //**    reportSettings.ReportServerPassword = Settings.GetInstance.SystemSettings.ReportServerPassword;
+                    //**    reportSettings.ReportServerUrl = Settings.GetInstance.SystemSettings.ReportServerUrl;
+                    //**    if (!reportSettings.ReportPath.EndsWith("/")) reportSettings.ReportPath += "/";
+                    //**    reportSettings.ReportPath += rdlReportName;
+                    //**    reportSettings.ReportParameters.Add(new Microsoft.Reporting.WebForms.ReportParameter("ids", idsUrlEncoded));
+                    //**    if (!string.IsNullOrEmpty(reportJsonData1))
+                    //**    {
+                    //**        reportSettings.ReportParameters.Add(new Microsoft.Reporting.WebForms.ReportParameter("jsonData", reportJsonData1));
+                    //**    }
+                    //**
+                    //**    string reportNameReal = reportSettings.GetReportName(entityName, id, userInfo);
+                    //**    ReportResult rr = new ReportResult(reportNameReal,
+                    //**        exportType,
+                    //**        reportSettings,
+                    //**        entityName,
+                    //**        userInfo,
+                    //**        entityName,
+                    //**        id,
+                    //**        false);
+                    //**
+                    //**    return rr;
+                    //**}
+                    //**else
+                    else if (reportMode == ReportMode.OneByOneId)
+                    {
+                        return await this.RenderReport(userInfo, entityName, id, reportPath + rdlReportName, exportType, gen);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.SaveLogError(LogLevel.Error, "Execute", ex, null, userInfo);
+            }
+            return NotFound();
+        }
+
+        private async Task<byte[]> RenderReportData(UserInfo userInfo, string entityName, int id, string reportName, ExportType exportType, ReportGenerator gen)
+        {
+            ParameterValue[] parameters = {
+                            new ParameterValue { Name = "id", Value = id.ToString() },
+                            new ParameterValue { Name = "userId", Value = userInfo.UserId.ToString() },
+                            new ParameterValue { Name = "codeLanguage", Value = userInfo.UserLanguage },
+                            new ParameterValue { Name = "entityName", Value = entityName }
+                        };
+
+            byte[] repData = await gen.RenderReport(reportName, parameters, exportType.ToString());
+            return repData;
+        }
+
+            private async Task<IActionResult> RenderReport(UserInfo userInfo, string entityName, int id, string reportName, ExportType exportType, ReportGenerator gen)
+        {
+            byte[] repData = await this.RenderReportData(userInfo, entityName, id, reportName, exportType, gen);
+
+            if (repData != null && repData.Length > 0)
+            {
+                SqlReport sqlReport = new SqlReport(userInfo, this.auditService);
+                string reportNameReal = sqlReport.GetReportName(entityName, id);
+                return File(repData, ReportHelper.GetMimeType(exportType), reportNameReal + "." + ReportHelper.GetExtension(exportType));
+            }
+            return NotFound();
+        }
+        #endregion
 
         #region Avatar
         [HttpGet]

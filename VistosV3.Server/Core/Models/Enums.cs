@@ -3,6 +3,25 @@ using System.Xml.Linq;
 
 namespace Core.Models
 {
+    public enum ExportType
+    {
+        Excel,
+        Word,
+        PDF,
+        HTML,
+        MHTML,
+        HTMLOWC,
+        ImagePNG,
+        ImageJPG,
+    }
+
+    public enum ReportMode
+    {
+        OneByOneId,
+        OneByMultipleIds,
+        MultipleByMultipleIds,
+    }
+
     public enum ResponseStatusCode
     {
         OK = 200,
@@ -14,19 +33,6 @@ namespace Core.Models
         Unauthorized = 215,
         InvalidJson = 216,
         NotAllowed = 0 // TODO: smazat nebo definovat!
-    }
-
-    public enum ExportType
-    {
-        Excel,
-        Word,
-        PDF,
-        HTML,
-        MHTML,
-        HTMLOWC,
-        ImagePNG,
-        ImageJPG,
-
     }
 
     public enum GridSettingsType

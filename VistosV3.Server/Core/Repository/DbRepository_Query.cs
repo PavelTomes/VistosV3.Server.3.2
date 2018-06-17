@@ -12,6 +12,9 @@ using Core.QueryBuilder;
 using Core.Services;
 using Core.VistosDb.Objects;
 using Core.VistosDb;
+using NetStdTools;
+using NetStdTools.ReportExecution;
+using Core.Tools;
 
 namespace Core.Repository
 {
@@ -249,22 +252,22 @@ namespace Core.Repository
                 newE.Merge(newEF);
                 if (entityNameTarget == "Email")
                 {
-                    //**Reports.ExportType exportType = Reports.ExportType.PDF;
-                    //**string rdlReportName = string.Empty;
-                    //**
-                    //**if (extData != null)
-                    //**{
-                    //**    foreach (KeyValuePair<string, JToken> property in extData)
-                    //**    {
-                    //**        if (property.Key == "ExportType")
-                    //**            exportType = (Reports.ExportType)Enum.Parse(typeof(Reports.ExportType), property.Value.ToString(), true);
-                    //**        if (property.Key == "RdlReportName")
-                    //**            rdlReportName = property.Value.ToString();
-                    //**    }
-                    //**}
-                    //**
-                    //**JObject emailAttachment = SaveEntityReportAsEmailAttachment(entityNameFrom, entityIdFrom, exportType, rdlReportName);
-                    //**newE.Merge(emailAttachment);
+                    ExportType exportType = ExportType.PDF;
+                    string rdlReportName = string.Empty;
+
+                    if (extData != null)
+                    {
+                        foreach (KeyValuePair<string, JToken> property in extData)
+                        {
+                            if (property.Key == "ExportType")
+                                exportType = (ExportType)Enum.Parse(typeof(ExportType), property.Value.ToString(), true);
+                            if (property.Key == "RdlReportName")
+                                rdlReportName = property.Value.ToString();
+                        }
+                    }
+
+                    JObject emailAttachment = SaveEntityReportAsEmailAttachment(entityNameFrom, entityIdFrom, exportType, rdlReportName);
+                    newE.Merge(emailAttachment);
                 }
                 return newE.ToString();
             }
@@ -276,54 +279,55 @@ namespace Core.Repository
             return "{}";
         }
 
-        //**private JObject SaveEntityReportAsEmailAttachment(string entityName, int entityId, Reports.ExportType exportType, string rdlReportName)
-        //**{
-        //**    string paramName = "id";
-        //**    if (!string.IsNullOrEmpty(rdlReportName) && !string.IsNullOrEmpty(paramName))
-        //**    {
-        //**        Vistos3Api.Code.Reports.ReportSettings reportSettings = new Vistos3Api.Code.Reports.ReportSettings();
-        //**        reportSettings.ReportPath = Settings.GetInstance.SystemSettings.ReportServerFormsPath;
-        //**        reportSettings.ReportServerUserName = Settings.GetInstance.SystemSettings.ReportServerUserName;
-        //**        reportSettings.ReportServerPassword = Settings.GetInstance.SystemSettings.ReportServerPassword;
-        //**        reportSettings.ReportServerUrl = Settings.GetInstance.SystemSettings.ReportServerUrl;
-        //**
-        //**        if (!string.IsNullOrEmpty(reportSettings.ReportServerUrl))
-        //**        {
-        //**            if (!reportSettings.ReportPath.EndsWith("/")) reportSettings.ReportPath += "/";
-        //**            reportSettings.ReportPath += rdlReportName;
-        //**            reportSettings.ReportParameters.Add(new Microsoft.Reporting.WebForms.ReportParameter(paramName, entityId.ToString()));
-        //**        }
-        //**
-        //**        string[] streamids;
-        //**        string deviceInfo;
-        //**        Vistos3Api.Code.Reports.ReportGenerator reportGenerator = new Vistos3Api.Code.Reports.ReportGenerator();
-        //**
-        //**        byte[] bytes = reportGenerator.RenderReport(exportType, reportSettings, userInfo.UserId, userInfo.UserLanguage, userInfo.ProfileId, entityName, out streamids, out deviceInfo);
-        //**
-        //**        if (bytes != null && bytes.Length > 0)
-        //**        {
-        //**            string fileName = reportSettings.GetReportName(entityName, entityId, this.userInfo) + "." + Structures.GetExtension(exportType);
-        //**            string fileType = Structures.GetMimeType(exportType);
-        //**            EmailAttachment item = new EmailAttachment();
-        //**            item.Deleted = false;
-        //**            item.Created = DateTime.Now;
-        //**            item.CreatedBy_FK = userInfo.UserId;
-        //**            item.Modified = DateTime.Now;
-        //**            item.FileName = fileName;
-        //**            item.Data = bytes;
-        //**            item.DataLength = bytes.Length;
-        //**            item.Type = fileType;
-        //**
-        //**            using (VistosDbContext ctx = new VistosDbContext())
-        //**            {
-        //**                ctx.EmailAttachment.Add(item);
-        //**                ctx.SaveChanges();
-        //**            }
-        //**            return JObject.Parse($"{{\"EmailAttachment\":[{{\"Id\": {item.Id.ToString()}, \"Deleted\": false, \"FileName\": \"{fileName}\", \"Type\": \"{fileType}\"}}]}}");
-        //**        }
-        //**    }
-        //**    return JObject.Parse($"{{\"EmailAttachment\":[]}}");
-        //**}
+        private JObject SaveEntityReportAsEmailAttachment(string entityName, int entityId, ExportType exportType, string rdlReportName)
+        {
+            string paramName = "id";
+            if (!string.IsNullOrEmpty(rdlReportName) && !string.IsNullOrEmpty(paramName))
+            {
+                ReportGenerator gen = new ReportGenerator(
+                 Settings.GetInstance.SystemSettings.ReportServerUrl + "/ReportExecution2005.asmx",
+                 Settings.GetInstance.SystemSettings.ReportServerUserName,
+                 Settings.GetInstance.SystemSettings.ReportServerPassword
+                 );
+                string reportPath = Settings.GetInstance.SystemSettings.ReportServerFormsPath;
+                if (!reportPath.EndsWith("/")) reportPath += "/";
+
+                ParameterValue[] parameters = {
+                            new ParameterValue { Name = "id", Value = entityId.ToString() },
+                            new ParameterValue { Name = "userId", Value = userInfo.UserId.ToString() },
+                            new ParameterValue { Name = "codeLanguage", Value = userInfo.UserLanguage },
+                            new ParameterValue { Name = "entityName", Value = entityName }
+                        };
+
+                Task<byte[]> repDataAsync = gen.RenderReport(reportPath + rdlReportName, parameters, exportType.ToString());
+                byte[] repData = repDataAsync.Result;
+
+                if (repData != null && repData.Length > 0)
+                {
+                    SqlReport sqlReport = new SqlReport(userInfo, this.auditService);
+                    string fileName = sqlReport.GetReportName(entityName, entityId) + "." + ReportHelper.GetExtension(exportType);
+                    string fileType = ReportHelper.GetMimeType(exportType);
+
+                    EmailAttachment item = new EmailAttachment();
+                    item.Deleted = false;
+                    item.Created = DateTime.Now;
+                    item.CreatedBy_FK = userInfo.UserId;
+                    item.Modified = DateTime.Now;
+                    item.FileName = fileName;
+                    item.Data = repData;
+                    item.DataLength = repData.Length;
+                    item.Type = fileType;
+
+                    using (VistosDbContext ctx = new VistosDbContext())
+                    {
+                        ctx.EmailAttachment.Add(item);
+                        ctx.SaveChanges();
+                    }
+                    return JObject.Parse($"{{\"EmailAttachment\":[{{\"Id\": {item.Id.ToString()}, \"Deleted\": false, \"FileName\": \"{fileName}\", \"Type\": \"{fileType}\"}}]}}");
+                }
+            }
+            return JObject.Parse($"{{\"EmailAttachment\":[]}}");
+        }
         private string NewEntityFrom(string entityNameFrom, int entityIdFrom, string entityNameTarget, ProjectionActionType actionTypeName, ProjectionMethodMode methodMode, ProjectionActionResultType resultType, JObject extData)
         {
             StringBuilder json = new StringBuilder();
