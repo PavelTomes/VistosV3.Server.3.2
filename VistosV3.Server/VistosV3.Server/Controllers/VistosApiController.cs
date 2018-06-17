@@ -24,7 +24,7 @@ namespace VistosV3.Server.Controllers
 {
     public class VistosApiController : BaseVistosApiController
     {
-        public VistosApiController(IAuditService audit) : base(audit)
+        public VistosApiController(IAuditService audit,IHttpContextAccessor accessor) : base(audit, accessor)
         {
         }
 

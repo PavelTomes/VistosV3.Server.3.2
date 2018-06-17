@@ -8,6 +8,7 @@ using Core.Repository;
 using Core.Services;
 using Core.VistosDb;
 using Core.VistosDb.Objects;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Newtonsoft.Json;
@@ -18,10 +19,14 @@ namespace VistosV3.Server.Controllers
     public class BaseVistosApiController : Controller
     {
         public IAuditService auditService { get; }
-        public BaseVistosApiController(IAuditService audit)
+        private IHttpContextAccessor _accessor;
+
+        public BaseVistosApiController(IAuditService audit, IHttpContextAccessor accessor)
         {
             this.auditService = audit;
+            this._accessor = accessor;
         }
+
         public override void OnActionExecuted(ActionExecutedContext filterContext)
         {
             Task.Factory.StartNew(() => auditService.SaveAudit());
@@ -30,9 +35,8 @@ namespace VistosV3.Server.Controllers
 
         public override void OnActionExecuting(ActionExecutingContext filterContext)
         {
-            auditService.SetRequestInfo(this.ControllerContext.RouteData.Values["action"].ToString()
-                                                                , "11111");
-           //**                                          , filterContext.HttpContext.Request.ServerVariables["REMOTE_ADDR"]);
+            auditService.SetRequestInfo(this.ControllerContext.RouteData.Values["action"].ToString(),
+                                        this._accessor.HttpContext.Connection.RemoteIpAddress.ToString());
             base.OnActionExecuting(filterContext);
         }
 
