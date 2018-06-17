@@ -1,0 +1,84 @@
+﻿<#@ template debug="true" hostspecific="false" inherits="TemplateBase" language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="QueryBuilder.Templates" #>
+
+	SET NOCOUNT ON; 
+
+		SELECT
+			[Entity1].[Id]
+			<#
+			PushIndent("			");
+            foreach(string columnName in this.columnsVisible)
+            {
+                var col = this.columns.Where(c => c.ProjectionColumn_Name == columnName).FirstOrDefault();
+                if (col != null)
+                {
+                    WriteColumnForEntity1Select(col);
+                    Write(Environment.NewLine);
+                }
+            }
+			PopIndent();
+			foreach(var col in columnsVisible.Where(c => c.StartsWith("Role__"))){#>
+			,[Entity1].[<#= col #>] as [<#= col #>]
+			<#
+			}
+			if (vwProjection.Object_CategoriesEnabled)
+			{#>
+			,[Entity1].[EntityCategories]
+			<#}#>
+		FROM (
+			SELECT
+				[Project1].[<#= vwProjection.DbPrimaryColumn_Name #>] as [Id]
+				,[Project1].[CaptionSort]
+				<#				PushIndent("				");
+				foreach(string columnName in this.columnsVisible)
+				{
+					var col = this.columns.Where(c => c.ProjectionColumn_Name == columnName).FirstOrDefault();
+					if (col != null)
+					{
+						WriteColumnForProject1Select(col);
+						Write(Environment.NewLine);
+					}
+				}
+				if (!this.columnsVisible.Any(x => x == sortOrderColumnName))
+				{
+					var col = this.columns.Where(c => c.ProjectionColumn_Name == sortOrderColumnName).FirstOrDefault();
+					if (col != null)
+					{
+						WriteColumnForProject1Select(col);
+						Write(Environment.NewLine);
+					}
+				}
+				PopIndent();
+				foreach(var col in columnsVisible.Where(c => c.StartsWith("Role__"))){#>
+				,(	STUFF((
+						SELECT ',' + usr1.[CaptionDisplay]
+						FROM [crm].[Participant] part1
+						INNER JOIN [crm].[User] usr1 ON usr1.[Deleted] = 0 AND usr1.[Id] = part1.[User_FK]
+						INNER JOIN [crm].[DbObjectRole] dor1 ON dor1.[Deleted] = 0 AND dor1.[Id] = part1.[DbObjectRole_FK] AND dor1.[DbObject_FK] = <#= vwProjection.DbObject_Id #>
+						INNER JOIN [crm].[Role] role1 ON role1.[Deleted] = 0 AND role1.[Id] = dor1.[Role_FK] AND role1.[Name] = '<#= col.Replace("Role__","") #>'
+						WHERE part1.[Deleted] = 0
+							AND part1.[RecordId] = [Project1].[<#= vwProjection.DbPrimaryColumn_Name #>]
+						FOR XML PATH('')
+					),1,1,'')
+				) as [<#= col #>]<#
+				}
+				#>
+			FROM  [<#= vwProjection.DbObject_Schema #>].[<#= vwProjection.DbObject_Name #>] AS [Project1]
+			<# 
+				PushIndent("			");
+				WriteLeftOuterJoin(WriteLeftOuterJoinType.ForData);
+				PopIndent();
+			#>
+				<#
+				PushIndent("				");
+				WriteWhereFilter();
+				WriteFilter();
+				PopIndent();
+				#>
+			) AS [Entity1]
+
+		ORDER BY <#= sortOrder_Entity #>

@@ -1,0 +1,47 @@
+﻿<#@ template debug="true" hostspecific="false" inherits="TemplateBase" language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="Core.Models" #>
+
+, ( 
+SELECT 
+	[<#= vwProjection.Projection_Name #>].[CaptionDisplay] as 	[Caption]
+	,[<#= relation.ProjectionRelation_ChildProjectionName #>].[CreatedBy_FK]
+	,(select top 1 s.[UserName] from [crm].[User] s where s.Id = [<#= relation.ProjectionRelation_ChildProjectionName #>].[CreatedBy_FK]) as [CreatedBy_FK_Caption]
+	,[<#= relation.ProjectionRelation_ChildProjectionName #>].[Created]
+	,[<#= relation.ProjectionRelation_ChildProjectionName #>].[ModifiedBy_FK]
+	,(select top 1 s.[UserName] from [crm].[User] s where s.Id = [<#= relation.ProjectionRelation_ChildProjectionName #>].[ModifiedBy_FK]) as [ModifiedBy_FK_Caption]
+	,[<#= relation.ProjectionRelation_ChildProjectionName #>].[Modified]
+	,[<#= relation.ProjectionRelation_ChildProjectionName #>].[Deleted]
+	<#
+
+	PushIndent("	");
+	foreach(var col in columns){
+		WriteColumnBracketedString(col);
+		WriteCaptionStringForColumn(col);
+		Write(Environment.NewLine);
+	}
+	PopIndent();
+
+	if (relation.ProjectionRelation_Type_FK == (int)DbRelationTypeEnum.ItemMasterGrid) { #>
+	,(
+		SELECT top 1 [<#= relation.ProjectionRelation_ChildProjectionName #>2].[<#= vwProjection.DbPrimaryColumn_Name #>]
+		from [<#= relation.DbObject1_Schema #>].[<#= relation.DbObject1_Name #>] [<#= relation.ProjectionRelation_ChildProjectionName #>2]
+		where [<#= relation.ProjectionRelation_ChildProjectionName #>2].[<#= vwProjection.DbPrimaryColumn_Name #>] < [<#= relation.ProjectionRelation_ChildProjectionName #>].[<#= vwProjection.DbPrimaryColumn_Name #>] and [<#= relation.ProjectionRelation_ChildProjectionName #>2].[Type] = 'BlockLabel' and [<#= relation.ProjectionRelation_ChildProjectionName #>].[Type] = 'Item'
+		order by [<#= relation.ProjectionRelation_ChildProjectionName #>2].[<#= vwProjection.DbPrimaryColumn_Name #>] desc
+	) as [Parent_FK]	
+	<# }
+
+#>
+FROM [<#= relation.DbObject1_Schema #>].[<#= relation.DbObject1_Name #>] [<#= relation.ProjectionRelation_ChildProjectionName #>]
+where [<#= relation.ProjectionRelation_ChildProjectionName #>].[Deleted] = 0
+and [<#= relation.ProjectionRelation_ChildProjectionName #>].[<#= relation.DbColumn1_Name #>] = [<#= parentEntity.Projection_Name#>].[<#= parentEntity.DbPrimaryColumn_Name#>]
+<#
+WriteWhereFilter();
+#>
+ORDER BY [<#= relation.ProjectionRelation_ChildProjectionName #>].[<#= relation.DbColumn_NameSortBy #>]
+FOR JSON PATH, INCLUDE_NULL_VALUES)
+as [<#= relation.ProjectionRelation_ChildProjectionName #>]
+

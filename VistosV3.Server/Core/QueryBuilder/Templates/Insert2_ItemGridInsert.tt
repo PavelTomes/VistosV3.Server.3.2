@@ -1,0 +1,79 @@
+﻿<#@ template debug="true" hostspecific="false" language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#
+PushIndent("				"); 
+#>
+
+declare @rowQueueOrder<#= childProjectionName #> int
+declare @newId<#= childProjectionName #> int
+declare cursor<#= childProjectionName #> CURSOR LOCAL FOR
+SELECT json<#= childProjectionName #>.[QueueOrder]
+FROM OPENJSON(@json<#= childProjectionName #>Rows)
+WITH ([Deleted] [bit], [QueueOrder] [int]) AS json<#= childProjectionName #>
+WHERE isnull(json<#= childProjectionName #>.[Deleted], 0) = 0 AND json<#= childProjectionName #>.[QueueOrder] > 0
+
+open cursor<#= childProjectionName #>
+fetch next from cursor<#= childProjectionName #> into @rowQueueOrder<#= childProjectionName #>
+while @@FETCH_STATUS=0
+begin
+	---<#= relation.DbObject1_Name #> insert
+	INSERT INTO [<#= relation.DbObject1_Schema #>].[<#= relation.DbObject1_Name #>]
+		([Deleted]
+		,[CreatedBy_FK]
+		,[Created]
+		,[ModifiedBy_FK]
+		,[Modified]
+		,[<#= relation.DbColumn1_Name #>]
+		<#PushIndent("			");
+		foreach(var col in columns){
+			WriteLine(",[" + col.DbColumn_Name + "]");
+		}
+		PopIndent();#>
+		)
+	SELECT
+		0
+		,@userId
+		,getdate()
+		,@userId
+		,getdate()
+		,@<#= parentIdVarName #>
+		<#PushIndent("			");
+		foreach(var col in columns){
+			WriteSelectColumn(col);
+		}
+		PopIndent();#>
+	FROM OPENJSON(@json<#= childProjectionName #>Rows)
+	WITH (	
+		[Deleted] [bit]
+		<#PushIndent("			");
+		foreach(var col in columns){
+			WriteJsonColumn(col);
+		}
+		PopIndent();#>
+		) AS json<#= childProjectionName #>
+	WHERE isnull(json<#= childProjectionName #>.[Deleted], 0) = 0 AND json<#= childProjectionName #>.[QueueOrder] = @rowQueueOrder<#= childProjectionName #>
+
+	SELECT @newId<#= childProjectionName #> = SCOPE_IDENTITY()
+	---<#= relation.DbObject1_Name #> insert
+
+	<# foreach(var subItem in subItems){ #>
+	declare @json<#= subItem.ProjectionRelation_ChildProjectionName #>Rows nvarchar(max) =   
+	(SELECT TOP 1 json<#= childProjectionName #>.[<#= subItem.ProjectionRelation_ChildProjectionName #>]
+	FROM OPENJSON(@json<#= childProjectionName #>Rows)
+	WITH (	
+		[Deleted] [bit]
+		,[QueueOrder] int
+		,[<#= subItem.ProjectionRelation_ChildProjectionName #>] nvarchar(max) N'$.<#= subItem.ProjectionRelation_ChildProjectionName #>' AS JSON
+		) AS json<#= childProjectionName #>
+	WHERE isnull(json<#= childProjectionName #>.[Deleted], 0) = 0 AND json<#= childProjectionName #>.[QueueOrder] = @rowQueueOrder<#= childProjectionName #>
+	)
+	<#WriteSubItem(subItem);
+	}#>
+		
+	fetch next from cursor<#= childProjectionName #> into @rowQueueOrder<#= childProjectionName #>
+end
+close cursor<#= childProjectionName #>
+deallocate cursor<#= childProjectionName #>	

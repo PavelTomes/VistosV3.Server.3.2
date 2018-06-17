@@ -1,0 +1,234 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp2.1</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="EPPlus.Core" Version="1.5.4" />
+    <PackageReference Include="Microsoft.AspNetCore.App" Version="2.1.0" />
+    <PackageReference Include="MimeMapping" Version="1.0.1.12" />
+    <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
+    <PackageReference Include="Newtonsoft.Json.Schema" Version="3.0.10" />
+    <PackageReference Include="SSH.NET" Version="2016.1.0" />
+    <PackageReference Include="System.CodeDom" Version="4.5.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="QueryBuilder\Templates\CreateFrom.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>CreateFrom.cs</LastGenOutput>
+    </None>
+    <None Update="QueryBuilder\Templates\Delete.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>Delete.cs</LastGenOutput>
+    </None>
+    <None Update="QueryBuilder\Templates\DeleteRelationEntity.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>DeleteRelationEntity.cs</LastGenOutput>
+    </None>
+    <None Update="QueryBuilder\Templates\GetById.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>GetById.cs</LastGenOutput>
+    </None>
+    <None Update="QueryBuilder\Templates\GetByIdItemGrid.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>GetByIdItemGrid.cs</LastGenOutput>
+    </None>
+    <None Update="QueryBuilder\Templates\GetCalendarEntities.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>GetCalendarEntities.cs</LastGenOutput>
+    </None>
+    <None Update="QueryBuilder\Templates\GetExport.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>GetExport.cs</LastGenOutput>
+    </None>
+    <None Update="QueryBuilder\Templates\GetGridCount.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>GetGridCount.cs</LastGenOutput>
+    </None>
+    <None Update="QueryBuilder\Templates\GetGridIds.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>GetGridIds.cs</LastGenOutput>
+    </None>
+    <None Update="QueryBuilder\Templates\GetItemsForAutocomplete.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>GetItemsForAutocomplete.cs</LastGenOutput>
+    </None>
+    <None Update="QueryBuilder\Templates\GetPage.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>GetPage.cs</LastGenOutput>
+    </None>
+    <None Update="QueryBuilder\Templates\GetPage_EntityActivity.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>GetPage_EntityActivity.cs</LastGenOutput>
+    </None>
+    <None Update="QueryBuilder\Templates\Import.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>Import.cs</LastGenOutput>
+    </None>
+    <None Update="QueryBuilder\Templates\Insert.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>Insert.cs</LastGenOutput>
+    </None>
+    <None Update="QueryBuilder\Templates\Insert2.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>Insert2.cs</LastGenOutput>
+    </None>
+    <None Update="QueryBuilder\Templates\Insert2_ItemGridInsert.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>Insert2_ItemGridInsert.cs</LastGenOutput>
+    </None>
+    <None Update="QueryBuilder\Templates\InsertEntityEntity.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>InsertEntityEntity.cs</LastGenOutput>
+    </None>
+    <None Update="QueryBuilder\Templates\ItemGridInsert.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>ItemGridInsert.cs</LastGenOutput>
+    </None>
+    <None Update="QueryBuilder\Templates\ItemGridUpdate.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>ItemGridUpdate.cs</LastGenOutput>
+    </None>
+    <None Update="QueryBuilder\Templates\MassUpdate.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>MassUpdate.cs</LastGenOutput>
+    </None>
+    <None Update="QueryBuilder\Templates\New.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>New.cs</LastGenOutput>
+    </None>
+    <None Update="QueryBuilder\Templates\Update.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>Update.cs</LastGenOutput>
+    </None>
+    <None Update="QueryBuilder\Templates\UpdateCalendarEntity.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>UpdateCalendarEntity.cs</LastGenOutput>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Service Include="{508349b6-6b84-4df5-91f0-309beebad82d}" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="QueryBuilder\Templates\CreateFrom.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>CreateFrom.tt</DependentUpon>
+    </Compile>
+    <Compile Update="QueryBuilder\Templates\Delete.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Delete.tt</DependentUpon>
+    </Compile>
+    <Compile Update="QueryBuilder\Templates\DeleteRelationEntity.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>DeleteRelationEntity.tt</DependentUpon>
+    </Compile>
+    <Compile Update="QueryBuilder\Templates\GetById.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>GetById.tt</DependentUpon>
+    </Compile>
+    <Compile Update="QueryBuilder\Templates\GetByIdItemGrid.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>GetByIdItemGrid.tt</DependentUpon>
+    </Compile>
+    <Compile Update="QueryBuilder\Templates\GetCalendarEntities.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>GetCalendarEntities.tt</DependentUpon>
+    </Compile>
+    <Compile Update="QueryBuilder\Templates\GetExport.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>GetExport.tt</DependentUpon>
+    </Compile>
+    <Compile Update="QueryBuilder\Templates\GetGridCount.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>GetGridCount.tt</DependentUpon>
+    </Compile>
+    <Compile Update="QueryBuilder\Templates\GetGridIds.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>GetGridIds.tt</DependentUpon>
+    </Compile>
+    <Compile Update="QueryBuilder\Templates\GetItemsForAutocomplete.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>GetItemsForAutocomplete.tt</DependentUpon>
+    </Compile>
+    <Compile Update="QueryBuilder\Templates\GetPage.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>GetPage.tt</DependentUpon>
+    </Compile>
+    <Compile Update="QueryBuilder\Templates\GetPage_EntityActivity.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>GetPage_EntityActivity.tt</DependentUpon>
+    </Compile>
+    <Compile Update="QueryBuilder\Templates\Import.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Import.tt</DependentUpon>
+    </Compile>
+    <Compile Update="QueryBuilder\Templates\Insert.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Insert.tt</DependentUpon>
+    </Compile>
+    <Compile Update="QueryBuilder\Templates\Insert2.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Insert2.tt</DependentUpon>
+    </Compile>
+    <Compile Update="QueryBuilder\Templates\Insert2_ItemGridInsert.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Insert2_ItemGridInsert.tt</DependentUpon>
+    </Compile>
+    <Compile Update="QueryBuilder\Templates\InsertEntityEntity.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>InsertEntityEntity.tt</DependentUpon>
+    </Compile>
+    <Compile Update="QueryBuilder\Templates\ItemGridInsert.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>ItemGridInsert.tt</DependentUpon>
+    </Compile>
+    <Compile Update="QueryBuilder\Templates\ItemGridUpdate.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>ItemGridUpdate.tt</DependentUpon>
+    </Compile>
+    <Compile Update="QueryBuilder\Templates\MassUpdate.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>MassUpdate.tt</DependentUpon>
+    </Compile>
+    <Compile Update="QueryBuilder\Templates\New.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>New.tt</DependentUpon>
+    </Compile>
+    <Compile Update="QueryBuilder\Templates\Update.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Update.tt</DependentUpon>
+    </Compile>
+    <Compile Update="QueryBuilder\Templates\UpdateCalendarEntity.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>UpdateCalendarEntity.tt</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+</Project>

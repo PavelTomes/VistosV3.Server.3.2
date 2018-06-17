@@ -1,0 +1,40 @@
+﻿<#@ template debug="true" hostspecific="false" inherits="TemplateBase" language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="QueryBuilder.Templates" #>
+
+<# 
+   bool isFirst = true;
+
+   foreach (var p in CalendarProjections)
+   {
+		var roles = EntitiesAndRoles[p.Projection_Name];
+
+		if (roles.Count > 0) 
+		{ #>
+			<#= isFirst ? string.Empty : "UNION" #>
+
+			<# isFirst = false; #>
+
+			SELECT E.[Id],
+			'<#= p.Projection_Name #>' AS EntityName, 
+			ISNULL(E.[CaptionDisplay], CONVERT(nvarchar(MAX), E.Id)) AS [Name], 
+			E.[<#= p.EventStartColumnName #>] AS StartDate, 
+			E.[<#= p.EventEndColumnName #>] AS EndDate,
+			CASE WHEN E.[<#= p.EventStartColumnName #>] = CAST(E.[<#= p.EventStartColumnName #>] AS date) AND E.[<#= p.EventEndColumnName #>] = CAST(E.[<#= p.EventEndColumnName #>] AS date) THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS IsAllDay,
+			'<#= p.CalendarBackgroundColor ?? string.Empty #>' AS CalendarBackgroundColor
+	
+			FROM [<#= p.DbObject_Schema #>].[<#= p.DbObject_Name #>] E
+	
+			WHERE E.[Deleted] = 0 AND E.[<#= p.EventStartColumnName #>] < @toDate AND E.[<#= p.EventEndColumnName #>] > @fromDate
+			AND E.[Id] in (
+				SELECT p1.[RecordId]
+				FROM [crm].[Participant] p1
+				INNER JOIN [crm].[DbObjectRole] dor1 ON dor1.[Deleted] = 0 AND dor1.[Id] = p1.[DbObjectRole_FK] AND dor1.[Role_FK] IN (<#= GetListValues(roles) #>)
+				WHERE p1.[Deleted] = 0
+					AND p1.[User_FK] IN (<#= GetListValues(UserIDs) #>)
+			)
+<# 		}
+	} #>

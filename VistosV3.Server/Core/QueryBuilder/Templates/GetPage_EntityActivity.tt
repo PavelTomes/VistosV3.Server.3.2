@@ -1,0 +1,223 @@
+﻿<#@ template debug="true" hostspecific="false" inherits="TemplateBase" language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="QueryBuilder.Templates" #>
+
+SET NOCOUNT ON
+
+    declare @parentRecordId int = <#= parentEntityId #>
+    declare @parentDbObjectId int = <#= parentDbObject_Id #>
+    declare @filterString nvarchar(max) = N'<#= FilterString #>'
+	declare @roledAssignedToId int = (SELECT TOP 1 [Id] FROM [crm].[Role] WHERE [Deleted] = 0 and [Name] = 'AssignedTo')
+
+    CREATE TABLE #RoleAssignedToUser(
+        [Id] [int]
+    )
+
+	if (len(isnull(JSON_QUERY(@filterString, '$.Role__AssignedTo'), N'')) > 2)
+	BEGIN
+		Insert Into #RoleAssignedToUser([Id])
+		SELECT JSON_VALUE(value, '$.UserId')
+		FROM OPENJSON(JSON_QUERY(@filterString, '$.Role__AssignedTo'))
+	END
+
+    CREATE TABLE #Data1(
+        [Id] [int],
+        [DbObjectId] [int],
+        [DbObjectName] [varchar](250),
+        [DbObjectSchema] [varchar](50),
+        [MainProjection] [varchar](250),
+        [Name] [nvarchar](2000),
+        [Created] [datetime],
+        [Modified] [datetime],
+        [CreatedBy_FK] [int],
+        [ModifiedBy_FK] [int],
+    )
+
+    declare @dbObjectId int
+    declare @DbObjectName [varchar](250)
+    declare @DbObjectSchema [varchar](50)
+    declare @dbObjectTypeId int
+    declare cData1 cursor local for
+            SELECT distinct
+                [Id]
+                ,[DbObjectType_FK]
+                ,[Name]
+                ,[Schema]
+            FROM (
+                SELECT distinct
+                    vwp1.[DbObject_Id] as [Id]
+                    ,vwp1.[DbObjectType_Id] as [DbObjectType_FK]
+                    ,vwp1.[DbObject_Name] as [Name]
+                    ,vwp1.[DbObject_Schema] as [Schema]
+                FROM [crm].[DbColumn] c1
+                INNER JOIN [crm].[vwProjection] vwp1 on vwp1.[DbObject_Id] = c1.[DbObject_FK] and vwp1.[Projection_ActivityEnabled] = 1 and vwp1.[Profile_Id] = @profileId and vwp1.[AccessRight] > 0
+                WHERE c1.[Deleted] = 0
+                    and c1.[ReferenceDbObject_FK] = @parentDbObjectId
+                    and vwp1.[DbObjectType_Id] in (1, 5)
+                UNION
+                SELECT distinct
+                    vwp1.[DbObject_Id] as [Id]
+                    ,vwp1.[DbObjectType_Id] as [DbObjectType_FK]
+                    ,vwp1.[DbObject_Name] as [Name]
+                    ,vwp1.[DbObject_Schema] as [Schema]
+                FROM [crm].[DbObjectDbObject] oo1
+                INNER JOIN [crm].[vwProjection] vwp1 on vwp1.[DbObject_Id] = oo1.[RightDbObject_FK] and vwp1.[Projection_ActivityEnabled] = 1 and vwp1.[Profile_Id] = @profileId and vwp1.[AccessRight] > 0
+                where oo1.[Deleted] = 0 and oo1.[LeftDbObject_FK] = @parentDbObjectId and oo1.[LeftRecordId] = @parentDbObjectId
+                UNION
+                SELECT distinct
+                    vwp1.[DbObject_Id] as [Id]
+                    ,vwp1.[DbObjectType_Id] as [DbObjectType_FK]
+                    ,vwp1.[DbObject_Name] as [Name]
+                    ,vwp1.[DbObject_Schema] as [Schema]
+                FROM [crm].[DbObjectDbObject] oo1
+                INNER JOIN [crm].[vwProjection] vwp1 on vwp1.[DbObject_Id] = oo1.[LeftDbObject_FK] and vwp1.[Projection_ActivityEnabled] = 1 and vwp1.[Profile_Id] = @profileId and vwp1.[AccessRight] > 0
+                where oo1.[Deleted] = 0 and oo1.[RightDbObject_FK] = @parentDbObjectId and oo1.[RightRecordId] = @parentDbObjectId
+            ) obj1
+
+    open cData1
+    fetch next from cData1 into @dbObjectId, @dbObjectTypeId, @DbObjectName, @DbObjectSchema
+    while @@FETCH_STATUS=0
+    begin
+        declare @whereCols0 varchar(max) = ''
+        declare @whereCols1 varchar(max) = ''
+        declare @whereCols2 varchar(max) = ''
+        declare @whereCols3 varchar(max) = ''
+        declare @select1 varchar(max) = ''
+
+        set @select1 = 'SELECT distinct ' + CAST(@dbObjectId as varchar) + ' as [DbObjectId],''' + @DbObjectName + ''' as [DbObjectName],''' + @DbObjectSchema + ''' as [DbObjectSchema], Entity1.[Id] as [RecordId],' + IIF(@DbObjectName='Directory','(case Entity1.[DirectoryType_FK] when 2 then ''Contact'' when 3 then ''Contractor'' when 4 then ''DirectoryBranch'' else ''Company'' end)','''' + @DbObjectName + '''') + ' as [MainProjection], Entity1.[CaptionDisplay] as [Caption], Entity1.[Created], Entity1.[Modified], Entity1.[CreatedBy_FK], Entity1.[ModifiedBy_FK]'
+        set @select1 = @select1 + ' FROM [' + @DbObjectSchema + '].[' + @DbObjectName + '] as Entity1 '
+
+        IF (@dbObjectTypeId = 1)
+        BEGIN
+            set @select1 = @select1 + ' WHERE Entity1.[Deleted] = 0 '
+        END
+        ELSE
+        BEGIN
+            set @select1 = @select1 + ' WHERE 1 = 1 '
+        END
+
+        SELECT @whereCols1 = coalesce(@whereCols1 + '', '') + 'or Entity1.[' + convert(varchar,c1.[Name]) + '] = ' + CAST(@parentRecordId as varchar) + ' '
+        FROM [crm].[DbColumn] c1
+        WHERE c1.[Deleted] = 0
+            and c1.DbObject_FK = @dbObjectId
+            and c1.[ReferenceDbObject_FK] = @parentDbObjectId
+            and c1.[ComputedExpression] is null
+        order by c1.QueueOrder
+
+        set @whereCols2 = ' or Entity1.[Id] in (SELECT oo1.[LeftRecordId] FROM [crm].[DbObjectDbObject] oo1 WHERE oo1.[Deleted] = 0 and oo1.[RightDbObject_FK] = ' + cast(@parentDbObjectId as varchar) + ' and oo1.[RightRecordId] = ' + cast(@parentRecordId as varchar) + ' and oo1.[LeftDbObject_FK] = ' + cast(@dbObjectId as varchar) + ')'
+        set @whereCols3 = ' or Entity1.[Id] in (SELECT oo1.[RightRecordId] FROM [crm].[DbObjectDbObject] oo1 WHERE oo1.[Deleted] = 0 and oo1.[LeftDbObject_FK] = ' + cast(@parentDbObjectId as varchar) + ' and oo1.[LeftRecordId] = ' + cast(@parentRecordId as varchar) + ' and oo1.[RightDbObject_FK] = ' + cast(@dbObjectId as varchar) + ')'
+
+        set @select1 = @select1 + ' and (1 = 0 ' + @whereCols0 + @whereCols1 + @whereCols2 + @whereCols3 + ')'
+
+        --print @select1
+
+        begin try
+            --print @select1
+            Insert Into #Data1([DbObjectId], [DbObjectName], [DbObjectSchema], [Id], [MainProjection], [Name], [Created], [Modified], [CreatedBy_FK], [ModifiedBy_FK])
+            exec(@select1)
+        end try
+        begin catch
+        end catch
+
+        fetch next from cData1 into @dbObjectId, @dbObjectTypeId, @DbObjectName, @DbObjectSchema
+    end
+    close cData1
+    deallocate cData1
+
+    SELECT
+        <#= draw #> as [draw]
+        ,(
+            SELECT count (*)
+            FROM #Data1 AS [Project1]
+        ) as [recordsTotal]
+        ,(
+            SELECT count (*)
+            FROM #Data1 AS [Project1]
+			WHERE [Project1].[Id] > 0
+				and ((len(isnull(JSON_VALUE(@filterString, '$.Created_From'), N'')) > 0 and ([Project1].[Created] >= cast((JSON_VALUE(@filterString, '$.Created_From')) as datetime))) or (len(isnull(JSON_VALUE(@filterString, '$.Created_From'), N'')) = 0))
+				and ((len(isnull(JSON_VALUE(@filterString, '$.Created_To'), N'')) > 0 and ([Project1].[Created] < cast((JSON_VALUE(@filterString, '$.Created_To')) as datetime))) or (len(isnull(JSON_VALUE(@filterString, '$.Created_To'), N'')) = 0))
+				and ((len(isnull(JSON_VALUE(@filterString, '$.Modified_From'), N'')) > 0 and ([Project1].[Modified] >= cast((JSON_VALUE(@filterString, '$.Modified_From')) as datetime))) or (len(isnull(JSON_VALUE(@filterString, '$.Modified_From'), N'')) = 0))
+				and ((len(isnull(JSON_VALUE(@filterString, '$.Modified_To'), N'')) > 0 and ([Project1].[Modified] < cast((JSON_VALUE(@filterString, '$.Modified_To')) as datetime))) or (len(isnull(JSON_VALUE(@filterString, '$.Modified_To'), N'')) = 0))
+				and ((len(isnull(JSON_QUERY(@filterString, '$.ProjectionLoc'), N'')) > 2 and
+						(
+							[Project1].[MainProjection] COLLATE SQL_Latin1_General_CP1_CI_AS in (SELECT p11.[Name] FROM [crm].[Projection] p11 WHERE p11.[Deleted] = 0 and p11.[ActivityEnabled] = 1 and p11.[Id] in (SELECT value FROM STRING_SPLIT(replace(replace(JSON_QUERY(@filterString, '$.ProjectionLoc'), '[',''), ']', ''), ',')  where len(isnull(value, '')) > 0))
+						)
+					) or (len(isnull(JSON_QUERY(@filterString, '$.ProjectionLoc'), N'')) <= 2))
+				and (((SELECT count(*) FROM #RoleAssignedToUser) > 0 and 
+						(
+							[Project1].[Id] in (
+					                            SELECT part1.[RecordId]
+					                            FROM [crm].[Role] role1
+					                            INNER JOIN [crm].[DbObjectRole] orole1 on orole1.[Deleted] = 0 and orole1.[DbObject_FK] = [Project1].[DbObjectId] and orole1.[Role_FK] = role1.[Id]
+					                            INNER JOIN [crm].[Participant] part1 on part1.[Deleted] = 0 and part1.[DbObjectRole_FK] = orole1.[Id] and part1.[User_FK] in (SELECT [Id] FROM #RoleAssignedToUser)
+					                            WHERE role1.[Deleted] = 0 and role1.[Id] = @roledAssignedToId
+				                            )
+						)
+					) or ((SELECT count(*) FROM #RoleAssignedToUser) = 0))        ) as [recordsFiltered]
+        ,(
+        SELECT TOP <#= length #>
+            [Entity1].[Id]
+            ,[Entity1].[Name]
+            ,[Entity1].[Name] as [Caption]
+            ,[Entity1].[Created]
+            ,[Entity1].[Modified]
+            ,(SELECT TOP 1 p1.[CaptionDisplay] FROM [crm].[User] p1 WHERE p1.[Deleted] = 0 and p1.[Id] = [Entity1].[CreatedBy_FK]) as [CreatedBy_FK]
+            ,(SELECT TOP 1 p1.[CaptionDisplay] FROM [crm].[User] p1 WHERE p1.[Deleted] = 0 and p1.[Id] = [Entity1].[ModifiedBy_FK]) as [ModifiedBy_FK]
+            ,[Entity1].[MainProjection]
+            ,(SELECT TOP 1 p1.[Icon] FROM [crm].[Projection] p1 WHERE p1.[Deleted] = 0 and p1.[Name] COLLATE SQL_Latin1_General_CP1_CI_AS = [Entity1].[MainProjection]) as [Icon]
+            ,isnull((SELECT TOP 1 ls.[value] FROM [crm].[LocalizationString] ls WHERE ls.[Language_Fk] = @userLanguageId and ls.[Area_Fk] = (SELECT TOP 1 la1.[Id] FROM [crm].[LocalizationArea] la1 WHERE la1.[Name] COLLATE SQL_Latin1_General_CP1_CI_AS = [Entity1].[MainProjection]) and ls.[key] = 'NameTitle' ORDER BY [customized] DESC) , [Entity1].[MainProjection]) as [ProjectionLoc]
+            ,(    STUFF((
+                        SELECT ',' + usr1.[CaptionDisplay]
+                        FROM [crm].[Participant] part1
+                        INNER JOIN [crm].[User] usr1 ON usr1.[Deleted] = 0 AND usr1.[Id] = part1.[User_FK]
+                        INNER JOIN [crm].[DbObjectRole] dor1 ON dor1.[Deleted] = 0 AND dor1.[Id] = part1.[DbObjectRole_FK] AND dor1.[DbObject_FK] = [Entity1].[DbObjectId]
+                        INNER JOIN [crm].[Role] role1 ON role1.[Deleted] = 0 AND role1.[Id] = dor1.[Role_FK] AND role1.[Name] = 'AssignedTo'
+                        WHERE part1.[Deleted] = 0
+                            AND part1.[RecordId] = [Entity1].[Id]
+                        FOR XML PATH('')
+                    ),1,1,'')
+                ) as [Role__AssignedTo]
+        FROM (
+            SELECT
+                [Project1].[Id] as [Id]
+                ,[Project1].[Name] as [Name]
+                ,[Project1].[Created] as [Created]
+                ,[Project1].[Modified] as [Modified]
+                ,[Project1].[CreatedBy_FK] as [CreatedBy_FK]
+                ,[Project1].[ModifiedBy_FK] as [ModifiedBy_FK]
+                ,[Project1].[MainProjection] as [MainProjection]
+                ,[Project1].[DbObjectId] as [DbObjectId]
+                ,row_number() OVER (ORDER BY <#= sortOrder_Project #>) AS [row_number]
+            FROM  #Data1 AS [Project1]
+			WHERE [Project1].[Id] > 0
+				and ((len(isnull(JSON_VALUE(@filterString, '$.Created_From'), N'')) > 0 and ([Project1].[Created] >= cast((JSON_VALUE(@filterString, '$.Created_From')) as datetime))) or (len(isnull(JSON_VALUE(@filterString, '$.Created_From'), N'')) = 0))
+				and ((len(isnull(JSON_VALUE(@filterString, '$.Created_To'), N'')) > 0 and ([Project1].[Created] < cast((JSON_VALUE(@filterString, '$.Created_To')) as datetime))) or (len(isnull(JSON_VALUE(@filterString, '$.Created_To'), N'')) = 0))
+				and ((len(isnull(JSON_VALUE(@filterString, '$.Modified_From'), N'')) > 0 and ([Project1].[Modified] >= cast((JSON_VALUE(@filterString, '$.Modified_From')) as datetime))) or (len(isnull(JSON_VALUE(@filterString, '$.Modified_From'), N'')) = 0))
+				and ((len(isnull(JSON_VALUE(@filterString, '$.Modified_To'), N'')) > 0 and ([Project1].[Modified] < cast((JSON_VALUE(@filterString, '$.Modified_To')) as datetime))) or (len(isnull(JSON_VALUE(@filterString, '$.Modified_To'), N'')) = 0))
+				and ((len(isnull(JSON_QUERY(@filterString, '$.ProjectionLoc'), N'')) > 2 and
+						(
+							[Project1].[MainProjection] COLLATE SQL_Latin1_General_CP1_CI_AS in (SELECT p11.[Name] FROM [crm].[Projection] p11 WHERE p11.[Deleted] = 0 and p11.[ActivityEnabled] = 1 and p11.[Id] in (SELECT value FROM STRING_SPLIT(replace(replace(JSON_QUERY(@filterString, '$.ProjectionLoc'), '[',''), ']', ''), ',')  where len(isnull(value, '')) > 0))
+						)
+					) or (len(isnull(JSON_QUERY(@filterString, '$.ProjectionLoc'), N'')) <= 2))
+				and (((SELECT count(*) FROM #RoleAssignedToUser) > 0 and 
+						(
+							[Project1].[Id] in (
+					                            SELECT part1.[RecordId]
+					                            FROM [crm].[Role] role1
+					                            INNER JOIN [crm].[DbObjectRole] orole1 on orole1.[Deleted] = 0 and orole1.[DbObject_FK] = [Project1].[DbObjectId] and orole1.[Role_FK] = role1.[Id]
+					                            INNER JOIN [crm].[Participant] part1 on part1.[Deleted] = 0 and part1.[DbObjectRole_FK] = orole1.[Id] and part1.[User_FK] in (SELECT [Id] FROM #RoleAssignedToUser)
+					                            WHERE role1.[Deleted] = 0 and role1.[Id] = @roledAssignedToId
+				                            )
+						)
+					) or ((SELECT count(*) FROM #RoleAssignedToUser) = 0))            ) AS [Entity1]
+		WHERE [Entity1].[row_number] > <#= start #>
+		ORDER BY <#= sortOrder_Entity #>
+        FOR JSON PATH, INCLUDE_NULL_VALUES
+    ) as [data]
+    FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
+
+    DROP TABLE #Data1
+	DROP TABLE #RoleAssignedToUser

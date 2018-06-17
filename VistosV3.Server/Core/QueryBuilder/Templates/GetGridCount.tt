@@ -1,0 +1,126 @@
+﻿<#@ template debug="true" hostspecific="false" inherits="TemplateBase" language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="QueryBuilder.Templates" #>
+
+SET NOCOUNT ON; 
+
+<#
+if (vwProjection.DbObject_Name == "EntityActivity")
+{
+#>
+    declare @parentRecordId int = <#= parentEntityId #>
+    declare @parentDbObjectId int = <#= parentDbObject_Id #>
+
+    CREATE TABLE #Data1([Count] [int])
+
+    declare @dbObjectId int
+    declare @DbObjectName [varchar](250)
+    declare @DbObjectSchema [varchar](50)
+    declare @dbObjectTypeId int
+    declare cData1 cursor local for
+            SELECT distinct
+                [Id]
+                ,[DbObjectType_FK]
+                ,[Name]
+                ,[Schema]
+            FROM (
+                SELECT distinct
+                    vwp1.[DbObject_Id] as [Id]
+                    ,vwp1.[DbObjectType_Id] as [DbObjectType_FK]
+                    ,vwp1.[DbObject_Name] as [Name]
+                    ,vwp1.[DbObject_Schema] as [Schema]
+                FROM [crm].[DbColumn] c1
+                INNER JOIN [crm].[vwProjection] vwp1 on vwp1.[DbObject_Id] = c1.[DbObject_FK] and vwp1.[Projection_ActivityEnabled] = 1 and vwp1.[Profile_Id] = @profileId and vwp1.[AccessRight] > 0
+                WHERE c1.[Deleted] = 0
+                    and c1.[ReferenceDbObject_FK] = @parentDbObjectId
+                    and vwp1.[DbObjectType_Id] in (1, 5)
+                UNION
+                SELECT distinct
+                    vwp1.[DbObject_Id] as [Id]
+                    ,vwp1.[DbObjectType_Id] as [DbObjectType_FK]
+                    ,vwp1.[DbObject_Name] as [Name]
+                    ,vwp1.[DbObject_Schema] as [Schema]
+                FROM [crm].[DbObjectDbObject] oo1
+                INNER JOIN [crm].[vwProjection] vwp1 on vwp1.[DbObject_Id] = oo1.[RightDbObject_FK] and vwp1.[Projection_ActivityEnabled] = 1 and vwp1.[Profile_Id] = @profileId and vwp1.[AccessRight] > 0
+                where oo1.[Deleted] = 0 and oo1.[LeftDbObject_FK] = @parentDbObjectId and oo1.[LeftRecordId] = @parentDbObjectId
+                UNION
+                SELECT distinct
+                    vwp1.[DbObject_Id] as [Id]
+                    ,vwp1.[DbObjectType_Id] as [DbObjectType_FK]
+                    ,vwp1.[DbObject_Name] as [Name]
+                    ,vwp1.[DbObject_Schema] as [Schema]
+                FROM [crm].[DbObjectDbObject] oo1
+                INNER JOIN [crm].[vwProjection] vwp1 on vwp1.[DbObject_Id] = oo1.[LeftDbObject_FK] and vwp1.[Projection_ActivityEnabled] = 1 and vwp1.[Profile_Id] = @profileId and vwp1.[AccessRight] > 0
+                where oo1.[Deleted] = 0 and oo1.[RightDbObject_FK] = @parentDbObjectId and oo1.[RightRecordId] = @parentDbObjectId
+            ) obj1
+
+    open cData1
+    fetch next from cData1 into @dbObjectId, @dbObjectTypeId, @DbObjectName, @DbObjectSchema
+    while @@FETCH_STATUS=0
+    begin
+        declare @whereCols0 varchar(max) = ''
+        declare @whereCols1 varchar(max) = ''
+        declare @whereCols2 varchar(max) = ''
+        declare @whereCols3 varchar(max) = ''
+        declare @select1 varchar(max) = ''
+
+        set @select1 = 'SELECT distinct Entity1.[Id]'
+        set @select1 = @select1 + ' FROM [' + @DbObjectSchema + '].[' + @DbObjectName + '] as Entity1 '
+
+        IF (@dbObjectTypeId = 1)
+        BEGIN
+            set @select1 = @select1 + ' WHERE Entity1.[Deleted] = 0 '
+        END
+        ELSE
+        BEGIN
+            set @select1 = @select1 + ' WHERE 1 = 1 '
+        END
+
+        SELECT @whereCols1 = coalesce(@whereCols1 + '', '') + 'or Entity1.[' + convert(varchar,c1.[Name]) + '] = ' + CAST(@parentRecordId as varchar) + ' '
+        FROM [crm].[DbColumn] c1
+        WHERE c1.[Deleted] = 0
+            and c1.DbObject_FK = @dbObjectId
+            and c1.[ReferenceDbObject_FK] = @parentDbObjectId
+            and c1.[ComputedExpression] is null
+        order by c1.QueueOrder
+
+        set @whereCols2 = ' or Entity1.[Id] in (SELECT oo1.[LeftRecordId] FROM [crm].[DbObjectDbObject] oo1 WHERE oo1.[Deleted] = 0 and oo1.[RightDbObject_FK] = ' + cast(@parentDbObjectId as varchar) + ' and oo1.[RightRecordId] = ' + cast(@parentRecordId as varchar) + ' and oo1.[LeftDbObject_FK] = ' + cast(@dbObjectId as varchar) + ')'
+        set @whereCols3 = ' or Entity1.[Id] in (SELECT oo1.[RightRecordId] FROM [crm].[DbObjectDbObject] oo1 WHERE oo1.[Deleted] = 0 and oo1.[LeftDbObject_FK] = ' + cast(@parentDbObjectId as varchar) + ' and oo1.[LeftRecordId] = ' + cast(@parentRecordId as varchar) + ' and oo1.[RightDbObject_FK] = ' + cast(@dbObjectId as varchar) + ')'
+
+        set @select1 = @select1 + ' and (1 = 0 ' + @whereCols0 + @whereCols1 + @whereCols2 + @whereCols3 + ')'
+        set @select1 = 'SELECT count(*) FROM (' + @select1 + ') count1'
+
+        --print @select1
+
+        begin try
+            --print @select1
+            Insert Into #Data1([Count])
+            exec(@select1)
+        end try
+        begin catch
+        end catch
+
+        fetch next from cData1 into @dbObjectId, @dbObjectTypeId, @DbObjectName, @DbObjectSchema
+    end
+    close cData1
+    deallocate cData1
+
+	SELECT SUM([Count]) FROM #Data1
+
+    DROP TABLE #Data1
+
+<#
+}
+else
+{
+#>
+SELECT  count (*)
+FROM [<#= vwProjection.DbObject_Schema #>].[<#= vwProjection.DbObject_Name #>] AS [Project1]
+	<#
+	WriteWhereFilter();
+	WriteFilter();
+	#>
+<#}#>

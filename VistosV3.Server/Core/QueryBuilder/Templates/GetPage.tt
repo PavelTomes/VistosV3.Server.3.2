@@ -1,0 +1,123 @@
+﻿<#@ template debug="true" hostspecific="false" inherits="TemplateBase" language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="QueryBuilder.Templates" #>
+
+	SET NOCOUNT ON; 
+
+	SELECT
+		<#= draw #> as [draw]
+		,(
+			SELECT count (*)
+			FROM [<#= vwProjection.DbObject_Schema #>].[<#= vwProjection.DbObject_Name #>] AS [Project1]
+				<#
+				PushIndent("				");
+				WriteWhereFilter();
+				PopIndent();
+				#>
+		) as [recordsTotal]
+		,(
+			SELECT  count (*)
+			FROM [<#= vwProjection.DbObject_Schema #>].[<#= vwProjection.DbObject_Name #>] AS [Project1]
+				<#
+				PushIndent("				");
+				WriteWhereFilter();
+				WriteFilter();
+				PopIndent();
+				#>		) as [recordsFiltered]
+		<# if (vwProjection.DbObject_Name == "Email") { #>
+		,(
+			SELECT  count (*)
+			FROM [<#= vwProjection.DbObject_Schema #>].[<#= vwProjection.DbObject_Name #>] AS [Project1]
+				<#
+				PushIndent("				");
+				WriteWhereFilter();
+				WriteFilter();#>
+				and [Project1].[IsLinkedWithVistos] = 1
+				<#PopIndent();
+				#>		) as [recordsFilteredEmaiIsLinkedWithVistos]
+		<# } #>
+		,(
+		SELECT TOP <#= length #>
+			[Entity1].[Id]
+			<#
+			if (vwProjection.DbPrimaryColumn_Name.ToUpper() != "ID")
+			{#>
+			,[Entity1].[<#= vwProjection.DbPrimaryColumn_Name #>]
+			<# } #>
+			<#if (vwProjection.DbObjectType_Id == 1 || vwProjection.DbObjectType_Id == 5)
+			{#>
+,[Entity1].[CaptionDisplay] as [Caption] 
+<# if (vwProjection.DbObject_Schema == "dbo" && vwProjection.DbObject_Name == "Directory") {
+#>,[Entity1].[MainProjection] as [MainProjection] 
+<# }
+			}
+			PushIndent("			");
+			foreach(var col in columns.Where(c => columnsVisible.Contains(c.ProjectionColumn_Name))){
+				WriteColumnForEntity1Select(col);
+				Write(Environment.NewLine);
+			}
+			PopIndent();
+			foreach(var col in columnsVisible.Where(c => c.StartsWith("Role__"))){#>
+			,[Entity1].[<#= col #>] as [<#= col #>]
+			<#
+			}
+			#>
+		FROM (
+			SELECT
+				[Project1].[<#= vwProjection.DbPrimaryColumn_Name #>] as [Id]
+				<#
+				if (vwProjection.DbPrimaryColumn_Name.ToUpper() != "ID")
+				{#>
+				,[Project1].[<#= vwProjection.DbPrimaryColumn_Name #>] as [<#= vwProjection.DbPrimaryColumn_Name #>]
+				<# } #>
+				<#
+				if (vwProjection.DbObjectType_Id == 1 || vwProjection.DbObjectType_Id == 5)
+				{#>
+				,[Project1].[CaptionSort]
+				,[Project1].[CaptionDisplay]
+				<# if (vwProjection.DbObject_Schema == "dbo" && vwProjection.DbObject_Name == "Directory") {
+				#>,(case [Project1].[DirectoryType_FK] when 2 then 'Contact' when 3 then 'Contractor' when 4 then 'DirectoryBranch' else 'Company' end) as [MainProjection]
+				<# }
+				}
+				PushIndent("				");
+				foreach(var col in columns.Where(c => columnsVisible.Contains(c.ProjectionColumn_Name) || c.ProjectionColumn_Name == sortOrderColumnName)){
+					WriteColumnForProject1Select(col);
+					Write(Environment.NewLine);
+				}
+				PopIndent();
+				foreach(var col in columnsVisible.Where(c => c.StartsWith("Role__"))){#>
+				,(	STUFF((
+						SELECT ',' + usr1.[CaptionDisplay]
+						FROM [crm].[Participant] part1
+						INNER JOIN [crm].[User] usr1 ON usr1.[Deleted] = 0 AND usr1.[Id] = part1.[User_FK]
+						INNER JOIN [crm].[DbObjectRole] dor1 ON dor1.[Deleted] = 0 AND dor1.[Id] = part1.[DbObjectRole_FK] AND dor1.[DbObject_FK] = <#= vwProjection.DbObject_Id #>
+						INNER JOIN [crm].[Role] role1 ON role1.[Deleted] = 0 AND role1.[Id] = dor1.[Role_FK] AND role1.[Name] = '<#= col.Replace("Role__","") #>'
+						WHERE part1.[Deleted] = 0
+							AND part1.[RecordId] = [Project1].[<#= vwProjection.DbPrimaryColumn_Name #>]
+						FOR XML PATH('')
+					),1,1,'')
+				) as [<#= col #>]<#
+				}
+				#>
+				,row_number() OVER (ORDER BY <#= sortOrder_Project #>) AS [row_number]
+			FROM  [<#= vwProjection.DbObject_Schema #>].[<#= vwProjection.DbObject_Name #>] AS [Project1]
+			<# 
+				PushIndent("			");
+				WriteLeftOuterJoin(WriteLeftOuterJoinType.ForData);
+				PopIndent();
+			#>
+				<#
+				PushIndent("				");
+				WriteWhereFilter();
+				WriteFilter();
+				PopIndent();
+				#>
+			) AS [Entity1]
+		WHERE [Entity1].[row_number] > <#= start #>
+		ORDER BY <#= sortOrder_Entity #>
+		FOR JSON PATH, INCLUDE_NULL_VALUES
+	) as [data]
+	FOR JSON PATH, WITHOUT_ARRAY_WRAPPER

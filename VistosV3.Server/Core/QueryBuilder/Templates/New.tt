@@ -1,0 +1,32 @@
+﻿<#@ template debug="true" hostspecific="false" inherits="TemplateBase" language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+
+DECLARE @defaultCurrencyCode as varchar(10) = (Select top 1 ss.[DefaultCurrency_FK] from crm.[SystemSettings] ss where ss.[Deleted] = 0 Order By ss.[Id])
+DECLARE @defaultCurrencyId as int = (Select top 1 c.[Id] from [crm].[Currency] c where c.[IsoCode] = @defaultCurrencyCode AND c.[Deleted] = 0)
+--DECLARE @IssuerAccount_FK int = [crm].[GetDefaultCompanyID]()
+ 
+	
+SELECT 
+	0 as [Version]
+<#  WriteSelectColumn(); #>
+
+	<#
+	if (vwProjection.Object_ParticipantEnabled)
+	{
+	#>
+	,(SELECT r1.[Id] as [RoleId]
+		,@userId as [UserId]
+		,(SELECT TOP 1 u1.[CaptionDisplay] FROM [crm].[User] u1 WHERE u1.[Deleted] = 0 and u1.[Id] = @userId) as [UserCaption]
+	  FROM [crm].[Role] r1
+	  INNER JOIN [crm].[DbObjectRole] dor1 ON dor1.[Deleted] = 0 AND dor1.[DbObject_FK] = <#= vwProjection.DbObject_Id #> AND dor1.[Role_FK] = r1.[Id]
+	  WHERE r1.[Deleted] = 0 and r1.[Name] in ('AssignedTo', 'DiscussionParticipant')
+	  FOR JSON PATH, INCLUDE_NULL_VALUES)
+	as [Participants]
+	<#
+	} #>
+
+	FOR JSON PATH, WITHOUT_ARRAY_WRAPPER 
+

@@ -1,0 +1,69 @@
+﻿<#@ template debug="true" hostspecific="false" language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+declare @Id int
+
+BEGIN TRY
+	BEGIN TRANSACTION
+
+		INSERT INTO [<#= vwProjection.DbObject_Schema #>].[<#= vwProjection.DbObject_Name #>]
+			([Deleted]
+			,[CreatedBy_FK]
+			,[Created]
+			,[ModifiedBy_FK]
+			,[Modified]
+<# 
+			PushIndent("			");
+			foreach(var col in columns){
+				WriteInsertColumn(col);
+			}
+			PopIndent();
+#>			)
+		select
+			0
+			,@userId
+			,getdate()
+			,NULL
+			,getdate()
+<# 
+			PushIndent("			");
+			foreach(var col in columns){
+				WriteSelectColumn(col);
+			}
+			PopIndent();
+	#>		FROM OPENJSON(@json)
+				WITH (
+					[Deleted] [bit]
+<# 
+			PushIndent("					");
+			foreach(var col in columns){
+				WriteJsonColumn(col);
+			}
+			PopIndent();
+#>	
+			) AS json
+
+		SELECT @Id = SCOPE_IDENTITY()
+		
+	<# foreach(var subItem in subItems){ #>
+	declare @json<#= subItem.ProjectionRelation_ChildProjectionName #>Rows nvarchar(max) = JSON_QUERY(@json, '$.<#= subItem.ProjectionRelation_ChildProjectionName #>')
+	<#WriteSubItem(subItem);
+	}#>
+	
+			SELECT @Id
+
+		COMMIT TRANSACTION
+	END TRY
+	BEGIN CATCH 
+		IF (@@TRANCOUNT > 0)
+		   BEGIN
+			  ROLLBACK TRANSACTION
+		   END 
+			declare @ERROR_NUMBER int = 50000;
+			declare @ERROR_MESSAGE nvarchar(2048) = (isnull(cast((ERROR_PROCEDURE()) as varchar) + '. ', '') + ERROR_MESSAGE());
+			declare @ERROR_STATE int = ERROR_STATE();
+
+			THROW @ERROR_NUMBER, @ERROR_MESSAGE, @ERROR_STATE;
+	END CATCH

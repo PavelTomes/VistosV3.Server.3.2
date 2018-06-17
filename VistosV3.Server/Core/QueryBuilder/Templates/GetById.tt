@@ -1,0 +1,146 @@
+﻿<#@ template debug="true" hostspecific="false" inherits="TemplateBase" language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #> 
+<#@ import namespace="System.Collections.Generic" #>
+<#	
+if (vwProjection.DbObject_Name == "Email")
+{
+#>
+declare @jsonDbObjectsForEmail nvarchar(max)
+exec [dbo].[sp_api3_GetDbObjectsForEmail] @id, <#=userInfo.ProfileId#>, <#=userInfo.UserLanguageId#>, @jsonDbObjectsForEmail out
+declare @jsonDirectoriesForEmail nvarchar(max)
+exec [dbo].[sp_api3_GetDirectoriesForEmail] @id, <#=userInfo.ProfileId#>, <#=userInfo.UserLanguageId#>, @jsonDirectoriesForEmail out
+<#	
+}
+#>
+
+SELECT top 1
+	[<#= vwProjection.Projection_Name #>].[<#= vwProjection.DbPrimaryColumn_Name #>] as [Id]
+	<#if (vwProjection.DbObjectType_Id == 1)
+	{#>
+	,[<#= vwProjection.Projection_Name #>].[CaptionDisplay] as 	[Caption]
+	,[<#= vwProjection.Projection_Name #>].[CreatedBy_FK]
+	,(select top 1 s.[UserName] from [crm].[User] s where s.Id = [<#= vwProjection.Projection_Name #>].[CreatedBy_FK]) as [CreatedBy_FK_Caption]
+	,[<#= vwProjection.Projection_Name #>].[Created]
+	,[<#= vwProjection.Projection_Name #>].[ModifiedBy_FK]
+	,(select top 1 s.[UserName] from [crm].[User] s where s.Id = [<#= vwProjection.Projection_Name #>].[ModifiedBy_FK]) as [ModifiedBy_FK_Caption]
+	,[<#= vwProjection.Projection_Name #>].[Modified]
+	<# }
+	if (vwProjection.Projection_Name == "Email")
+	{#>
+		,cast(iif([<#= vwProjection.Projection_Name #>].[FlagStatus]& 16 > 0, 0, 1) as bit) as [Locked]
+	<#} 
+
+	PushIndent("	");
+
+	foreach(var col in columns){
+		WriteColumnBracketedString(col);
+		WriteCaptionStringForColumn(col);
+		Write(Environment.NewLine);
+	}
+	if (vwProjection.DbObject_Name != "User" && vwProjection.DbObjectType_Id == 1 && !simple)
+	{
+		//WriteCategoriesForEntity();
+	}
+	WriteGrids();
+	
+	if (vwProjection.Object_ParticipantEnabled && !simple)
+	{
+	#>
+	,(SELECT r1.[Id] as [RoleId]
+		,pa1.[User_FK] as [UserId]
+		,u1.[CaptionDisplay] as [UserCaption]
+	  FROM [crm].[Participant] pa1
+	  INNER JOIN [crm].[DbObjectRole] dor1 ON dor1.[Deleted] = 0 AND dor1.[Id] = pa1.[DbObjectRole_FK] AND dor1.[DbObject_FK] = <#= vwProjection.DbObject_Id #>
+	  INNER JOIN [crm].[Role] r1 ON r1.[Deleted] = 0 AND r1.[Id] = dor1.[Role_FK]
+	  INNER JOIN [crm].[User] u1 ON u1.[Deleted] = 0 AND u1.[Id] = pa1.[User_FK]
+	  WHERE pa1.[Deleted] = 0
+	  AND pa1.[RecordId] = @id
+	  FOR JSON PATH, INCLUDE_NULL_VALUES)
+	as [Participants]
+	<#
+	}
+	
+	if (vwProjection.Object_DocumentEnabled && !simple)
+	{
+	#>
+	,(SELECT
+		[Document].[Id] as [Id]
+		,[Document].[Deleted]
+		,[Document].[CaptionSort]
+		,[Document].[CaptionDisplay]
+		,[Document].[Name] as [Subject]
+		,[DocumentType].[Description_<#= userInfo.UserLanguage #>] as [Type_FK]
+		,isnull((SELECT count(*) FROM [crm].[DocumentAttachment] as [da1] WHERE [da1].[Deleted] = 0 AND [da1].[Document_FK] = [Document].[Id]),0) as [AttachmentCount]
+		,case isnull((SELECT count(*) FROM [crm].[DocumentAttachment] as [da1] WHERE [da1].[Deleted] = 0 AND [da1].[Document_FK] = [Document].[Id]),0)
+			when 1 then isnull((SELECT TOP 1 isnull([da1].[Icon], [dbo].[fn_GetIconByFileName]([da1].[DocName])) FROM [crm].[DocumentAttachment] as [da1] WHERE [da1].[Deleted] = 0 AND [da1].[Document_FK] = [Document].[Id]),'fa-file-o')
+			else 'fa-file-archive-o'
+			end as [Icon]
+		,row_number() OVER (ORDER BY [Document].[CaptionSort] ASC) AS [QueueOrder]
+	FROM [crm].[Document] as [Document]
+	LEFT OUTER JOIN [crm].[Enumeration] [DocumentType] on [DocumentType].[Id] = [Document].[Type_FK]
+	WHERE [Document].[Deleted] = 0
+		--and [Document].[Id] not in (SELECT Entity_FK FROM [crm].[fn_GetBannedEntityIds] (@userId, 8, 1))
+		and [Document].[Id] in ( SELECT dod1.[Document_FK] FROM [crm].[DbObjectDocument] dod1 WHERE dod1.[Deleted] = 0 and dod1.[DbObject_FK] = <#= vwProjection.DbObject_Id #> and dod1.[RecordId] = @id) 
+	ORDER BY [QueueOrder]
+	FOR JSON PATH, INCLUDE_NULL_VALUES)
+	as [Document]
+
+	<#
+	}
+
+	if (!simple)
+	{
+	#>
+		,(
+			SELECT  count (*)
+			FROM [crm].[Email] AS [Project1]
+				where [Project1].[Deleted] = 0
+				and (([Project1].[Id] in (SELECT doe1.[Email_FK] FROM [crm].[DbObjectEmail] doe1 WHERE doe1.[Deleted] = 0 and doe1.[DbObject_FK] = <#= vwProjection.DbObject_Id #> and doe1.[RecordId] = @id)))
+		) as [RecordEmailsCount]
+		,(
+			SELECT  count (*)
+			FROM [crm].[Email] AS [Project1]
+				where [Project1].[Deleted] = 0
+				and (([Project1].[Id] in (SELECT doe1.[Email_FK] FROM [crm].[DbObjectEmail] doe1 WHERE doe1.[Deleted] = 0 and doe1.[DbObject_FK] = <#= vwProjection.DbObject_Id #> and doe1.[RecordId] = @id)))
+				and [Project1].[IsLinkedWithVistos] = 1
+	   ) as [RecordEmailsIsLinkedWithVistosCount]
+	<#
+	}
+
+	if (vwProjection.DbObject_Name == "Email")
+	{
+	#>
+	,(SELECT [Id]
+	  ,[Deleted]
+      ,[CreatedBy_FK]
+      ,[Created]
+      ,[ModifiedBy_FK]
+      ,[Modified]
+      ,[FileName]
+      ,[CID]
+      ,[Type]
+      ,[DataLength]
+	  FROM [crm].[EmailAttachment] ea1
+	  WHERE ea1.[Deleted] = 0 AND ea1.[Email_FK] = @id
+		ORDER BY [FileName]
+		FOR JSON PATH, INCLUDE_NULL_VALUES)
+	as [EmailAttachment]
+	,JSON_QUERY(@jsonDbObjectsForEmail) as [DbObjectsRecords]
+	,JSON_QUERY(@jsonDirectoriesForEmail) as [DirectoriesRecords]
+	<#
+	}
+
+	PopIndent();
+#>
+FROM [<#= vwProjection.DbObject_Schema #>].[<#= vwProjection.DbObject_Name #>] as [<#= vwProjection.Projection_Name #>]
+<#
+WriteWhereFilter();
+#>
+and [<#= vwProjection.Projection_Name #>].[<#= vwProjection.DbPrimaryColumn_Name #>] = @id
+FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER
+
+
+
+

@@ -1,0 +1,131 @@
+﻿<#@ template debug="true" hostspecific="false" inherits="TemplateBase" language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #> 
+<#@ import namespace="System.Collections.Generic" #>
+
+DECLARE @defaultCurrencyCode as varchar(10) = (Select top 1 ss.[DefaultCurrency_FK] from crm.[SystemSettings] ss where ss.[Deleted] = 0 Order By ss.[Id])
+DECLARE @defaultCurrencyId as int = (Select top 1 c.[Id] from [crm].[Currency] c where c.[IsoCode] = @defaultCurrencyCode AND c.[Deleted] = 0)
+--DECLARE @IssuerAccount_FK int = [crm].[GetDefaultCompanyID]()
+
+BEGIN TRY 
+	BEGIN TRANSACTION
+
+	--update
+	UPDATE [<#= vwProjection.DbObject_Schema #>].[<#= vwProjection.DbObject_Name #>]
+		SET 
+		  [Deleted] = json.Deleted
+		,[ModifiedBy_FK] = @userId
+		,[Modified] = getdate()
+<# 
+			PushIndent("		");
+
+			foreach(var col in columns){
+				WriteUpdateColumn(col);
+			}
+			PopIndent();
+#>
+	FROM OPENJSON(@json)
+		WITH (	
+			[Deleted] [bit]
+<# 
+			PushIndent("			");
+			foreach(var col in columns){
+				WriteJsonColumn(col);
+			}
+			PopIndent();
+#>
+	) AS json
+	WHERE [<#= vwProjection.DbObject_Schema #>].[<#= vwProjection.DbObject_Name #>].[<#= pairingColumn #>] = json.[<#= pairingColumn #>]
+		AND json.[Deleted] = 0
+	--update
+
+	--delete
+	UPDATE [<#= vwProjection.DbObject_Schema #>].[<#= vwProjection.DbObject_Name #>]
+		SET 
+		  [Deleted] = json.Deleted
+		,[ModifiedBy_FK] = @userId
+		,[Modified] = getdate()
+	FROM OPENJSON(@json)
+		WITH (	
+			[Deleted] [bit]
+<# 
+			PushIndent("			");
+			WriteJsonColumn(columns.Where(x => x.ProjectionColumn_Name == pairingColumn).First());
+			PopIndent();
+#>
+	) AS json
+	WHERE [<#= vwProjection.DbObject_Schema #>].[<#= vwProjection.DbObject_Name #>].[<#= pairingColumn #>] = json.[<#= pairingColumn #>]
+		AND json.[Deleted] = 1
+	--delete
+
+	--insert
+	INSERT INTO [<#= vwProjection.DbObject_Schema #>].[<#= vwProjection.DbObject_Name #>]
+		([Deleted]
+		,[CreatedBy_FK]
+		,[Created]
+		,[ModifiedBy_FK]
+		,[Modified]
+<# 
+		PushIndent("		");
+		foreach(var col in columns){
+			WriteInsertColumn(col);
+		}
+		foreach(var col in newActionColumns){
+			WriteInsertColumn(col);
+		}
+		PopIndent();
+#>		)
+	SELECT
+		0
+		,@userId
+		,getdate()
+		,NULL
+		,getdate()
+<# 
+		PushIndent("		");
+		foreach(var col in columns){
+			WriteSelectColumn(col);
+		}
+		foreach(var col in newActionColumns){
+			WriteSelectColumn(col);
+		}
+		PopIndent();
+#>	FROM OPENJSON(@json)
+	WITH (
+		[Deleted] [bit]
+<# 
+		PushIndent("		");
+		foreach(var col in columns){
+			WriteJsonColumn(col);
+		}
+		PopIndent();
+#>	) AS json
+	WHERE json.[<#= pairingColumn #>] NOT IN (SELECT old.[<#= pairingColumn #>] FROM [<#= vwProjection.DbObject_Schema #>].[<#= vwProjection.DbObject_Name #>] old WHERE old.[Deleted] = 0 AND old.[<#= pairingColumn #>] IS NOT NULL)
+		AND json.[Deleted] = 0
+	--insert
+
+	COMMIT TRANSACTION
+END TRY
+BEGIN CATCH 
+	IF (@@TRANCOUNT > 0)
+		BEGIN
+			ROLLBACK TRANSACTION
+		END 
+			
+		--SELECT
+		--	ERROR_NUMBER() AS ErrorNumber,
+		--	ERROR_SEVERITY() AS ErrorSeverity,
+		--	ERROR_STATE() AS ErrorState,
+		--	ERROR_PROCEDURE() AS ErrorProcedure,
+		--	ERROR_LINE() AS ErrorLine,
+		--	ERROR_MESSAGE() AS ErrorMessage
+
+			declare @ERROR_NUMBER int = 50000;
+			declare @ERROR_MESSAGE nvarchar(2048) = (isnull(cast((ERROR_PROCEDURE()) as varchar) + '. ', '') + ERROR_MESSAGE());
+			declare @ERROR_STATE int = ERROR_STATE();
+
+			THROW @ERROR_NUMBER, @ERROR_MESSAGE, @ERROR_STATE;
+END CATCH
+
+
